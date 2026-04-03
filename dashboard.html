@@ -1,0 +1,92 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>USB Guardian Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+
+<body>
+
+<h1>📊 USB Guardian Dashboard</h1>
+
+<!-- Filter -->
+<label>User Filter:</label>
+<input type="text" id="filterUser" placeholder="Enter username"/>
+
+<div id="stats"></div>
+
+<canvas id="chart" width="400" height="100"></canvas>
+
+<h2>Events</h2>
+<table border="1">
+<thead>
+<tr>
+<th>User</th><th>File</th><th>Risk</th><th>Action</th>
+</tr>
+</thead>
+<tbody id="table"></tbody>
+</table>
+
+<script>
+
+let chart;
+
+async function load(){
+
+    const filter = document.getElementById("filterUser").value.toLowerCase();
+
+    const stats = await fetch("/api/stats").then(r=>r.json());
+    const data = await fetch("/api/events").then(r=>r.json());
+
+    document.getElementById("stats").innerHTML =
+        `Total: ${stats.total} | High Risk: ${stats.high_risk} | Blocked: ${stats.blocked}`;
+
+    // Filter
+    let filtered = data.filter(x =>
+        !filter || (x.user && x.user.toLowerCase().includes(filter))
+    );
+
+    // Table
+    let html = "";
+    filtered.slice(-20).reverse().forEach(x=>{
+
+        let color = x.risk_score > 80 ? "style='background-color:red;color:white'" : "";
+
+        html += `<tr ${color}>
+            <td>${x.user}</td>
+            <td>${x.file_name}</td>
+            <td>${x.risk_score}</td>
+            <td>${x.action}</td>
+        </tr>`;
+    });
+
+    document.getElementById("table").innerHTML = html;
+
+    // Chart data
+    const riskCounts = {
+        low: filtered.filter(x=>x.risk_score <= 50).length,
+        medium: filtered.filter(x=>x.risk_score > 50 && x.risk_score <=80).length,
+        high: filtered.filter(x=>x.risk_score > 80).length
+    };
+
+    if(chart) chart.destroy();
+
+    chart = new Chart(document.getElementById("chart"), {
+        type: 'bar',
+        data: {
+            labels: ["Low", "Medium", "High"],
+            datasets: [{
+                label: "Risk Distribution",
+                data: [riskCounts.low, riskCounts.medium, riskCounts.high]
+            }]
+        }
+    });
+}
+
+setInterval(load, 9000);
+load();
+
+</script>
+
+</body>
+</html>
